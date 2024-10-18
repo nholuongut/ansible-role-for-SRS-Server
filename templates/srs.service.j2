@@ -1,0 +1,20 @@
+# Systemd unit file for {{ app_name }} service
+[Unit]
+Description={{ app_name }} service
+
+StartLimitIntervalSec=500
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+
+WorkingDirectory={{ installation_folder }}
+ExecStart={{ java_bin }} -jar SRS.jar
+ExecStop=/bin/pkill -15 -f SRS.jar
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
+

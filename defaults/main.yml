@@ -1,0 +1,54 @@
+---
+
+required_modifiable_fields:
+  - app_version
+  - server_port
+  - installation_root_folder
+  - java_version
+
+app_name: "srs"
+__app_version: 21.1.166
+
+service_name: "{{ app_name }}.service"
+
+__server_port: 8090
+
+__java_version: 17.0.3_7
+
+
+# application.properties
+base_application_properties:
+  - "server.port": "{{ server_port }}"
+
+extra_application_properties: {}
+
+application_properties: "{{ base_application_properties | combine(extra_application_properties) }}"
+
+# logback.xml
+logback_xml_xpath:
+  property: "/*[local-name()='configuration']/*[local-name() = 'property']"
+
+logback_xml:
+  - "LOGS_FOLDER": "{{ logs_folder }}"
+
+
+# agents.xml
+agents_xml_xpath:
+  agent: "/*[local-name()='agents']/*[local-name() = 'agent']"
+
+extra_agents_xml: {}
+
+agents_xml: "{{ extra_agents_xml }}"
+
+start_after_install: True
+
+clear_temp_folder: False
+clear_before_install: False
+
+
+custom_download_url: ""
+
+cdn_name: "devops-artifacts.experitest.com"
+s3_download_url: "https://{{ cdn_name }}/{{ relative_path }}/{{ installer_file_name }}"
+
+java_download_url: "https://{{ cdn_name }}/{{ java_relative_path }}/{{ java_download_filename }}"

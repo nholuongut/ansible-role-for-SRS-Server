@@ -1,0 +1,30 @@
+---
+
+- name: fail if os family is not linux
+  fail: 
+    msg: SRS supports on Linux OS host only
+  when: ansible_os_family|lower != "redhat"
+
+- name: validate vars
+  include_tasks: tasks/variables.yml
+
+- name: install
+  include_tasks: "tasks/{{ ansible_os_family | os_family_to_os_type }}-install.yml"
+  when: state|default('present') == 'present'
+
+- name: clear temp folder
+  include_tasks: "tasks/{{ ansible_os_family | os_family_to_os_type }}-clear-temp.yml"
+  when: clear_temp_folder == True
+
+- name: track versions
+  include_tasks: "tasks/{{ ansible_os_family | os_family_to_os_type }}-track-versions.yml"
+  when: state|default('present') == 'present'
+
+- name: remove archived versions
+  include_tasks: "tasks/{{ ansible_os_family | os_family_to_os_type }}-remove-archived.yml"
+  when: state|default('present') == 'present'
+
+- name: uninstall
+  include_tasks: "tasks/{{ ansible_os_family | os_family_to_os_type }}-uninstall.yml"
+  when: state|default('present') == 'absent'
+

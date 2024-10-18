@@ -1,0 +1,27 @@
+---
+
+__installation_root_folder: "/opt/Experitest"
+installation_folder: "{{ installation_root_folder }}/{{ app_name }}-{{ app_version }}"
+
+temp_folder: /var/tmp/Experitest
+
+logs_folder: "/var/opt/Experitest/{{ app_name }}/logs"
+
+data_folder: "/var/lib/Experitest/SRS/Bundles"
+
+service_file_path: "/etc/systemd/system/{{ service_name }}"
+
+alt_service_filepath: "/usr/lib/systemd/system/{{ service_name }}"
+
+installer_file_name: "SRS_{{ app_version }}.zip"
+
+relative_path: "srs/linux"
+
+java_download_filename: "OpenJDK8U-jre_x64_linux_hotspot_{{ java_version }}.tar.gz"
+
+java_relative_path: "java/linux"
+
+java_installation_folder: "{{ installation_root_folder }}/jre"
+
+java_bin: "{{ java_installation_folder }}/jdk{{ java_version }}-jre/bin/java"
+

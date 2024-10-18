@@ -1,0 +1,220 @@
+
+# validation
+
+- name: assert all vars are set
+  assert: { that: "{{ item }} != '' " }
+  with_items:
+  - app_name
+  - service_name
+  - service_file_path
+  - logs_folder
+
+# required dependencies
+
+- name: make sure epel-release is installed
+  yum:
+    name: epel-release
+    state: present
+    lock_timeout: 180
+  become: yes
+
+- name: make sure rsync is installed
+  yum:
+    name: rsync
+    state: present
+    lock_timeout: 180
+  become: yes
+
+- name: make sure unzip is installed
+  yum:
+    name: unzip
+    state: present
+    lock_timeout: 180
+  become: yes
+
+- name: make sure psmisc (killall) is installed
+  yum:
+    name: psmisc
+    state: present
+    lock_timeout: 180
+  become: yes
+
+- name: install lxml package
+  pip:
+    name: lxml
+  delegate_to: localhost
+#  become: yes
+
+# disable selinux and firewalld
+
+- name: disable selinux
+  selinux:
+    state: disabled
+  become: yes
+   
+- name: stop and disable firewall     # ? need to discuss on disabling firewall service ?
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  become: yes
+  ignore_errors: yes
+  with_items:
+    - firewalld
+
+# set temp folder
+
+- name: make sure temp folder
+  file:
+    path: "{{ temp_folder }}"
+    state: directory
+    mode: 0777
+    owner: "{{ ansible_user_id }}"
+  become: yes
+
+- name: make sure logs folder exists
+  file:
+    path: "{{ logs_folder }}"
+    state: directory
+    mode: 0777
+    owner: "{{ ansible_user_id }}"
+  become: yes
+
+- name: make sure data folder exists
+  file:
+    path: "{{ data_folder }}"
+    state: directory
+    mode: 0777
+    owner: "{{ ansible_user_id }}"
+  become: yes
+
+# required java dependency
+
+- name: make sure java is installed on the machine
+  command: "{{ java_bin }} -version"
+  register: java_test
+  become: yes
+  ignore_errors: yes
+
+- name: fail if java is not found
+  fail:
+    msg: "java must be accesible in path {{ java_bin }}"
+  when: java_test.rc != 0
+
+# download the file
+
+- name: download zip from s3 url
+  get_url:
+    url: "{{ s3_download_url }}"
+    dest: "{{ temp_folder }}/{{ installer_file_name }}"
+    timeout: "{{ download_timeout | default(60) }}"
+  when: custom_download_url == ""
+
+- name: download zip from custom url
+  get_url:
+    url: "{{ custom_download_url }}"
+    dest: "{{ temp_folder }}/{{ installer_file_name }}"
+    timeout: "{{ download_timeout | default(60) }}"
+  when: custom_download_url != ""
+
+# stop old service
+
+- name: stop the old service
+  systemd:
+    name: "{{ service_name }}"
+    state: stopped
+  ignore_errors: yes
+  become: yes
+
+# delete old installation (optional)
+
+- name: clear old installation folder
+  file: 
+    path: "{{ installation_folder }}"
+    state: absent
+  become: yes
+  when: clear_before_install == True
+
+# unpack and copy all the files to the installation folder
+
+- name: make sure installation folder exists
+  file:
+    path: "{{ installation_folder }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+  become: yes
+
+- name: make sure unzip folder exist
+  file:
+    path: "{{ temp_folder }}/{{ (installer_file_name | splitext)[0] }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+  become: yes
+
+- name: unzip the file
+  unarchive:
+    src: "{{ temp_folder }}/{{ installer_file_name }}"
+    dest: "{{ temp_folder }}/{{ (installer_file_name | splitext)[0] }}"
+    remote_src: yes
+    creates: "{{ temp_folder }}/{{ (installer_file_name | splitext)[0] }}/SRS.jar"
+    owner: "{{ ansible_user_id }}"
+  become: yes
+
+- name: synchronize zip content to installation folder
+  command: "rsync -r {{ temp_folder }}/{{ (installer_file_name | splitext)[0] }}/ {{ installation_folder }}/"
+  become: yes
+  notify:
+    - start the service
+
+- name: copy service file
+  template:
+    src: srs.service.j2
+    dest: "{{ service_file_path }}"
+  become: yes
+
+# configure installed 
+
+- name: update application properties file
+  lineinfile:
+    path: "{{ installation_folder }}/config/application.properties"
+    line: "{{ item.key }}={{ item.value }}"
+    regexp: "^{{ item.key | replace('.', '\\.') }}="
+  with_dict: "{{ application_properties }}"
+  become: yes
+
+- name: update logback xml - set logs path
+  xml:
+    path: "{{ installation_folder }}/config/logback.xml"
+    xpath: "{{ logback_xml_xpath.property }}"
+    namespaces:
+      x: "{{ item.key }}"
+    attribute: value
+    value: "{{ item.value }}" 
+  with_dict: "{{ logback_xml }}"
+  become: yes
+
+# need to check if this requires?  
+- name: update agents xml
+  xml:
+    path: "{{ installation_folder }}/config/agents.xml"
+    xpath: "{{ agents_xml_xpath.agent }}/{{ item.key }}"
+    value: "{{ item.value }}" 
+  with_dict: "{{ agents_xml }}"
+  become: yes
+
+  
+# expose role output
+
+- name: sanitize role name
+  set_fact:
+    sanitize_role_name: "{{ role_name | replace('-', '_') | regex_replace('([^A-Za-z0-9_])', '') | trim }}"
+
+- name: expose role output
+  set_fact:
+    "{{ sanitize_role_name }}":
+      server_port: "{{ server_port }}"
+      installation_folder: "{{ installation_folder }}"
+      configuration_file: "{{ installation_folder }}/config/application.properties"
+      java_bin: "{{ java_bin }}"
+      service_name: "{{ service_name }}"
+      

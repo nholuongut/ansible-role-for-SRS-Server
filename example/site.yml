@@ -1,0 +1,5 @@
+
+- hosts: srs-server
+
+  roles:
+    - role: srs-server
